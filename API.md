@@ -29,3 +29,7 @@ char *nicookie_get_cookie(char *buf, size_t size, int browser);
     引数が不正。
 *   その他
     たぶん、そいつらはIOエラーだと思う。
+
+
+ERANGE: サイズが越えたとき。
+ENOSYS: 実装されていないとき。

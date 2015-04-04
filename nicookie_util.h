@@ -17,8 +17,11 @@
 #include "nicookie.h"
 #include "nicookie_config.h"
 
-// max path size 256
-#define NICOOKIE_PATH_MAX 256
+#ifdef _WIN32
+#define NICOOKIE_PATH_SEPARATOR '\\'
+#else
+#define NICOOKIE_PATH_SEPARATOR '/'
+#endif
 
 static inline uint32_t fget_uint32_be(FILE *stream) {
   uint32_t n = 0;
@@ -101,5 +104,7 @@ static inline char *fgetstr(FILE *stream, size_t n, char *s) {
 }
 
 char *nicookie_str_with_env(const char *str, const char *env);
+
+int nicookie_sqlite3(const char *filename, const char *sql, ...);
 
 #endif // nicookie_util_H

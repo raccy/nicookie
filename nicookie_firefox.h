@@ -6,6 +6,10 @@
 #ifndef nicookie_firefox_H
 #define nicookie_firefox_H
 
+#include <stddef.h>
+
 char *nicookie_firefox_cookies_path(const char *profile);
+char *nicookie_firefox_cookies(char *buf, size_t size,
+    const char *cookies_path);
 
 #endif // nicookie_firefox_H

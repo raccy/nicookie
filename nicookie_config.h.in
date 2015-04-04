@@ -8,15 +8,28 @@
 
 #define NICOOKIE_VERSION "@NICOOKIE_VERSION@"
 
+#define NICOOKIE_COOKIE_HOST ".nicovideo.jp"
+#define NICOOKIE_COOKIE_NAME "user_session"
+#define NICOOKIE_COOKIE_PATH "/"
+
 #ifdef DEBUG
 #include <stdio.h>
-#define nicookie_debug_str(name) fprintf(stderr, "[NICOOKIE_DEBUG] " #name " = %s\n", (name))
-#define nicookie_debug_int(name) fprintf(stderr, "[NICOOKIE_DEBUG] " #name " = %lld\n", (long long)(name))
-#define nicookie_debug_func() fprintf(stderr, "[NICOOKIE_DEBUG] call func: %s\n", __func__)
+#define nicookie_debug(format, ...) \
+  fprintf(stderr, \
+          "[NICOOKIE_DEBUG:%s:%d:%s] " format, \
+          __FILE__, __LINE__, __func__, \
+          ##__VA_ARGS__)
 #else
-#define nicookie_debug_str(name)
-#define nicookie_debug_int(name)
-#define nicookie_debug_func()
+#define nicookie_debug(format, ...)
 #endif
+
+#define nicookie_debug_str(name) \
+  nicookie_debug("str: " #name " = %16s\n", (name))
+#define nicookie_debug_ptr(name) \
+  nicookie_debug("ptr: " #name " = %p\n", (name))
+#define nicookie_debug_int(name) \
+  nicookie_debug("int: " #name " = %lld\n", (long long)(name))
+#define nicookie_debug_func() \
+  nicookie_debug("call func: %s\n", __func__)
 
 #endif
