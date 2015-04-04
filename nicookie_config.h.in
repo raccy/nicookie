@@ -1,0 +1,22 @@
+/*
+ * nicookie_config.h.in
+ * Copyright (c) 2015 IGARASHI Makoto (raccy)
+ * This software is released under the MIT License, see LICENSE.
+ */
+#ifndef nicookie_config_H
+#define nicookie_config_H
+
+#define NICOOKIE_VERSION "@NICOOKIE_VERSION@"
+
+#ifdef DEBUG
+#include <stdio.h>
+#define nicookie_debug_str(name) fprintf(stderr, "[NICOOKIE_DEBUG] " #name " = %s\n", (name))
+#define nicookie_debug_int(name) fprintf(stderr, "[NICOOKIE_DEBUG] " #name " = %lld\n", (long long)(name))
+#define nicookie_debug_func() fprintf(stderr, "[NICOOKIE_DEBUG] call func: %s\n", __func__)
+#else
+#define nicookie_debug_str(name)
+#define nicookie_debug_int(name)
+#define nicookie_debug_func()
+#endif
+
+#endif
