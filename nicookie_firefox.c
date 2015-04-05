@@ -107,20 +107,12 @@ char *nicookie_firefox_cookies(char *buf, size_t size,
     &value);
   if (result != SQLITE_OK || value == NULL) {
     if (errno == 0) errno = ENOENT;
+    free(value);
     return NULL;
   }
 
-  if (buf == NULL && size == 0) {
-    buf = malloc(strlen(value) + 1);
-    if (buf == NULL) return NULL;
-  } else if (size < strlen(value) + 1) {
-    errno = ERANGE;
-    return NULL;
-  } else if (buf == NULL) {
-    buf = malloc(size);
-    if (buf == NULL) return NULL;
-  }
-  strcpy(buf, value);
+  char *result_buf = nicookie_setstr(buf, size, value);
+  free(value);
 
-  return buf;
+  return result_buf;
 }

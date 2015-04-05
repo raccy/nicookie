@@ -18,6 +18,21 @@
 #include "nicookie_config.h"
 #include "nicookie_util.h"
 
+char *nicookie_setstr(char *buf, size_t size, const char *str) {
+  if (buf == NULL && size == 0) {
+    buf = malloc(strlen(str) + 1);
+    if (buf == NULL) return NULL;
+  } else if (size < strlen(str) + 1) {
+    errno = ERANGE;
+    return NULL;
+  } else if (buf == NULL) {
+    buf = malloc(size);
+    if (buf == NULL) return NULL;
+  }
+  strcpy(buf, str);
+  return buf;
+}
+
 char *nicookie_str_with_env(const char *str, const char *env) {
   nicookie_debug_func();
   nicookie_debug_str(str);

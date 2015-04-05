@@ -42,58 +42,70 @@ char *nicookie_osx_chrome(char *buf, size_t size) {
       &value, &encrypted_value, &encrypted_value_size);
   if (result != SQLITE_OK || value == NULL) {
     if (errno == 0) errno = ENOENT;
+    free(value);
+    free(encrypted_value);
     return NULL;
   }
   nicookie_debug_str(value);
   nicookie_debug_int(encrypted_value_size);
   free(cookies_path);
 
-  unsigned char *enc_key = nicookie_osx_chrome_key();
-  if (enc_key == NULL) {
-    return NULL;
+  char *result_buf = NULL;
+  if (encrypted_value_size == 0) {
+    result_buf = nicookie_setstr(buf, size, value);
+  } else {
+    unsigned char *enc_key = nicookie_osx_chrome_key();
+    if (enc_key == NULL) {
+      free(value);
+      free(encrypted_value);
+      return NULL;
+    }
+
+    // char *cmd = "security find-generic-password -w -a Chrome -s 'Chrome Safe Storage'";
+    // FILE *cmd_out = popen(cmd, "r");
+    // char *key = malloc(256);
+    // fgets(key, 256, cmd_out);
+    // nicookie_debug_int(key);
+    // nicookie_debug_str(key);
+    //
+    // unsigned char enc_key[16];
+    // int iterations = 1003;
+    //
+    // char *salt = "saltysalt";
+    // // 改行！
+    // int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1(key, strlen(key) - 1, salt, strlen(salt), iterations, 16, enc_key);
+    // nicookie_debug_int(pbkdf2_r);
+
+    unsigned char iv[16];
+    for (int i = 0; i < 16; i++) iv[i] = ' ';
+
+    int plain_size = 256;
+    char *plain = NULL;
+    plain = malloc(plain_size);
+    nicookie_debug_int(plain);
+
+    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX_init(&ctx);
+    nicookie_debug_int(&ctx);
+    EVP_DecryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, enc_key, iv);
+    nicookie_debug_int(&iv);
+
+    EVP_DecryptUpdate(&ctx, (unsigned char *)plain, &plain_size, (unsigned char *)(encrypted_value + 3), encrypted_value_size - 3);
+    int fin_size = 0;
+    EVP_DecryptFinal_ex(&ctx, (unsigned char *)(plain + plain_size), &fin_size);
+    nicookie_debug_int(plain_size);
+    nicookie_debug_int(fin_size);
+    plain[plain_size] = '\0';
+
+    nicookie_debug_str(plain);
+    EVP_CIPHER_CTX_cleanup(&ctx);
+
+    result_buf = nicookie_setstr(buf, size, plain);
+    free(enc_key);
   }
-
-  // char *cmd = "security find-generic-password -w -a Chrome -s 'Chrome Safe Storage'";
-  // FILE *cmd_out = popen(cmd, "r");
-  // char *key = malloc(256);
-  // fgets(key, 256, cmd_out);
-  // nicookie_debug_int(key);
-  // nicookie_debug_str(key);
-  //
-  // unsigned char enc_key[16];
-  // int iterations = 1003;
-  //
-  // char *salt = "saltysalt";
-  // // 改行！
-  // int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1(key, strlen(key) - 1, salt, strlen(salt), iterations, 16, enc_key);
-  // nicookie_debug_int(pbkdf2_r);
-
-  unsigned char iv[16];
-  for (int i = 0; i < 16; i++) iv[i] = ' ';
-  int plain_size = 256;
-  char *plain = NULL;
-  plain = malloc(plain_size);
-  nicookie_debug_int(plain);
-
-  EVP_CIPHER_CTX ctx;
-  EVP_CIPHER_CTX_init(&ctx);
-  nicookie_debug_int(&ctx);
-  EVP_DecryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, enc_key, iv);
-  nicookie_debug_int(&iv);
-
-  EVP_DecryptUpdate(&ctx, (unsigned char *)plain, &plain_size, (unsigned char *)(encrypted_value + 3), encrypted_value_size - 3);
-  int fin_size = 0;
-  EVP_DecryptFinal_ex(&ctx, (unsigned char *)(plain + plain_size), &fin_size);
-  nicookie_debug_int(plain_size);
-  nicookie_debug_int(fin_size);
-  plain[plain_size] = '\0';
-
-  nicookie_debug_str(plain);
-  EVP_CIPHER_CTX_cleanup(&ctx);
-
-  free(enc_key);
-
-  return plain;
+  free(value);
+  free(encrypted_value);
+  return result_buf;
 
 }
 

@@ -97,6 +97,7 @@ static inline char *fgetstr(FILE *stream, size_t n, char *s) {
   return s;
 }
 
+char *nicookie_setstr(char *buf, size_t size, const char *str);
 char *nicookie_str_with_env(const char *str, const char *env);
 int nicookie_sqlite3(const char *filename, const char *sql, ...);
 char *nicookie_str_chomp(char *str);
