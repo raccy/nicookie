@@ -21,7 +21,7 @@
 #include "nicookie_osx.h"
 #endif // __APPLE__
 #ifdef __linux__
-#include "nicookie_linux.h"
+#include "nicookie_lin.h"
 #endif // __linux__
 
 EXPORT const char *nicookie_version(void) {
@@ -30,15 +30,13 @@ EXPORT const char *nicookie_version(void) {
 
 EXPORT char *nicookie_get_cookie(char *buf, size_t size, int  browser) {
 #ifdef _WIN32
-  errno = ENOSYS;
-  return NULL;
+  return nicookie_win(buf, size, browser);
 #endif // _WIN32
 #ifdef __APPLE__
   return nicookie_osx(buf, size, browser);
 #endif // __APPLE__
 #ifdef __linux__
-  errno = ENOSYS;
-  return NULL;
+  return nicookie_lin(buf, size, browser);
 #endif // __linux__
 }
 
@@ -61,12 +59,14 @@ EXPORT const char *nicookie_browser_name(int browser) {
 
 EXPORT const int nicookie_browser_list(void) {
 #ifdef _WIN32
-  return NICOOKIE_NO_BROWSER;
+  return NICOOKIE_BROWSER_FIREFOX;
 #endif // _WIN32
 #ifdef __APPLE__
-  return NICOOKIE_BROWSER_SAFARI | NICOOKIE_BROWSER_FIREFOX | NICOOKIE_BROWSER_CHROME;
+  return NICOOKIE_BROWSER_SAFARI |
+         NICOOKIE_BROWSER_FIREFOX |
+         NICOOKIE_BROWSER_CHROME;
 #endif // __APPLE__
 #ifdef __linux__
-  return NICOOKIE_NO_BROWSER;
+  return NICOOKIE_BROWSER_FIREFOX;
 #endif // __linux__
 }
