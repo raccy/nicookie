@@ -17,14 +17,14 @@ OS
 
 * [ ] Windows 8.1
     * [ ] IE11
-    * [ ] Firefox
+    * [x] Firefox **未テスト**
     * [ ] Chrome (暗号化は…)
 * [ ] Mac 10.10
     * [x] Safari
     * [x] Firefox
     * [x] Chrome (暗号化は…)
 * [ ] Ubuntu 14.04
-    * [ ] Firefox
+    * [x] Firefox **未テスト**
     * [ ] Chrome (暗号化は…)
 
 Operaは要望があったらやる。他のブラウザはプルリク来たら、マージする。
@@ -52,5 +52,5 @@ C11を前提とする。ただし、Windowsでもコンパイルする部分はV
 * Firefoxのプロファイルが二つ以上ある場合は一番目しか取得しようとしない。
 
 ## 参考文献およびソース
-// opera
-// https://gist.github.com/gwarser/1324501
+
+opera https://gist.github.com/gwarser/1324501
