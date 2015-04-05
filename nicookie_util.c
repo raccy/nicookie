@@ -103,28 +103,38 @@ int nicookie_sqlite3(const char *filename, const char *sql, ...) {
       break;
     case SQLITE3_TEXT:
       query_text = (const char *)sqlite3_column_text(stmt, i);
-      buf_text = (char *)malloc(strlen(query_text) + 1);
-      if (buf_text == NULL) {
-        sqlite3_close(db);
-        sqlite3_finalize(stmt);
-        va_end(list);
-        return SQLITE_NOMEM;
+      if (query_text == NULL) {
+        *(va_arg(list, char **)) = NULL;
+      } else {
+        buf_text = (char *)malloc(strlen(query_text) + 1);
+        if (buf_text == NULL) {
+          sqlite3_close(db);
+          sqlite3_finalize(stmt);
+          va_end(list);
+          return SQLITE_NOMEM;
+        }
+        strcpy(buf_text, query_text);
+        *(va_arg(list, char **)) = buf_text;
       }
-      strcpy(buf_text, query_text);
-      *(va_arg(list, char **)) = buf_text;
       break;
     case SQLITE_BLOB:
       query_size = sqlite3_column_bytes(stmt, i);
-      query_blob = sqlite3_column_blob(stmt, i);
-      buf_blob = (void *)malloc(query_size);
-      if (buf_blob == NULL) {
-        sqlite3_close(db);
-        sqlite3_finalize(stmt);
-        va_end(list);
-        return SQLITE_NOMEM;
+      if (query_size == 0) {
+        *(va_arg(list, void **)) = NULL;
+        *(va_arg(list, int *)) = 0;
+      } else {
+        query_blob = sqlite3_column_blob(stmt, i);
+        buf_blob = (void *)malloc(query_size);
+        if (buf_blob == NULL) {
+          sqlite3_close(db);
+          sqlite3_finalize(stmt);
+          va_end(list);
+          return SQLITE_NOMEM;
+        }
+        memcpy(buf_blob, query_blob, query_size);
+        *(va_arg(list, void **)) = buf_blob;
+        *(va_arg(list, int *)) = query_size;
       }
-      memcpy(buf_blob, query_blob, query_size);
-      *(va_arg(list, void **)) = buf_blob;
       break;
     case SQLITE_NULL:
       *(va_arg(list, void **)) = NULL;

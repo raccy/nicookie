@@ -17,73 +17,57 @@
 #include "nicookie_config.h"
 #include "nicookie_util.h"
 #include "nicookie_osx.h"
-// #include "nicookie_general_chrome.h"
+#include "nicookie_chrome.h"
 
-// #define
-// OSX_FIREFOX_PROFILE_COOKIE_FILE_SUFFIX
-// "${HOME}/Library/Application Support/Firefox/profiles.ini"
-// "${HOME}/.mozilla/firefox/profiles.ini"
-// "${APPDATA}\\Mozilla\\Firefox\\profiles.ini"
+static unsigned char *nicookie_osx_chrome_key(void);
+static char *nicookie_osx_chrome_decryt(const char *encrypted_value,
+    int encrypted_value_size);
 
 // http://n8henrie.com/2014/05/decrypt-chrome-cookies-with-python/
 
 char *nicookie_osx_chrome(char *buf, size_t size) {
-  char *cookies_path = nicookie_str_with_env("%s/Library/Application Support/Google/Chrome/Default/Cookies", "HOME");
+  char *cookies_path = nicookie_str_with_env(
+      "%s/Library/Application Support/Google/Chrome/Default/Cookies",
+      "HOME");
+  if (cookies_path == NULL) return NULL;
 
-  sqlite3 *db = NULL;
-  if (sqlite3_open_v2(cookies_path, &db, SQLITE_OPEN_READONLY, NULL)
-      != SQLITE_OK) {
-    sqlite3_close(db);
+  char *value = NULL;
+  void *encrypted_value = NULL;
+  int encrypted_value_size = 0;
+  int result = nicookie_sqlite3(cookies_path,
+      "SELECT value,encrypted_value FROM cookies WHERE"
+      " host_key = '"  NICOOKIE_COOKIE_HOST
+      "' AND name = '" NICOOKIE_COOKIE_NAME
+      "' AND path = '" NICOOKIE_COOKIE_PATH "';",
+      &value, &encrypted_value, &encrypted_value_size);
+  if (result != SQLITE_OK || value == NULL) {
+    if (errno == 0) errno = ENOENT;
     return NULL;
   }
-  nicookie_debug_int(db);
-
-  char *errmsg = NULL;
-  sqlite3_stmt *stmp;
-
-  int result = sqlite3_prepare(db, "select value,encrypted_value from cookies where host_key = '.nicovideo.jp' and name = 'user_session' and path = '/';", -1, &stmp, NULL);
-  int rc = sqlite3_step(stmp);
-  const char *text = (const char *)sqlite3_column_text(stmp, 0);
-  char *value = malloc(strlen(text) + 1);
-  strcpy(value, text);
-
-  int blob_size = sqlite3_column_bytes(stmp, 1);
-  char *blob = malloc(blob_size);
-  memcpy(blob, sqlite3_column_blob(stmp, 1), blob_size);
-
-  nicookie_debug_int(blob_size);
-
-  sqlite3_finalize(stmp);
-
-  char *cmd = "security find-generic-password -w -a Chrome -s 'Chrome Safe Storage'";
-  FILE *cmd_out = popen(cmd, "r");
-  char *key = malloc(256);
-  fgets(key, 256, cmd_out);
-  nicookie_debug_int(key);
-  nicookie_debug_str(key);
-
-  nicookie_debug_int(result);
-  nicookie_debug_int(value);
   nicookie_debug_str(value);
-  // nicookie_debug_str(blob);
+  nicookie_debug_int(encrypted_value_size);
+  free(cookies_path);
 
-  unsigned char enc_key[16];
-  int iterations = 1003;
+  unsigned char *enc_key = nicookie_osx_chrome_key();
+  if (enc_key == NULL) {
+    return NULL;
+  }
 
-  char *salt = "saltysalt";
-  // 改行！
-  int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1(key, strlen(key) - 1, salt, strlen(salt), iterations, 16, enc_key);
-  nicookie_debug_int(pbkdf2_r);
+  // char *cmd = "security find-generic-password -w -a Chrome -s 'Chrome Safe Storage'";
+  // FILE *cmd_out = popen(cmd, "r");
+  // char *key = malloc(256);
+  // fgets(key, 256, cmd_out);
+  // nicookie_debug_int(key);
+  // nicookie_debug_str(key);
+  //
+  // unsigned char enc_key[16];
+  // int iterations = 1003;
+  //
+  // char *salt = "saltysalt";
+  // // 改行！
+  // int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1(key, strlen(key) - 1, salt, strlen(salt), iterations, 16, enc_key);
+  // nicookie_debug_int(pbkdf2_r);
 
-  // unsigned char *enc_key = nicookie_base64_decode(key);
-
-  // for (int i = 0; i < 128 / 8; i++) {
-  //   printf("%02x", enc_key[i]);
-  // }
-  // printf("\n");
-
-
-  // TODO base64をばらして、AESで複合化？
   unsigned char iv[16];
   for (int i = 0; i < 16; i++) iv[i] = ' ';
   int plain_size = 256;
@@ -97,7 +81,7 @@ char *nicookie_osx_chrome(char *buf, size_t size) {
   EVP_DecryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, enc_key, iv);
   nicookie_debug_int(&iv);
 
-  EVP_DecryptUpdate(&ctx, (unsigned char *)plain, &plain_size, (unsigned char *)(blob + 3), blob_size - 3);
+  EVP_DecryptUpdate(&ctx, (unsigned char *)plain, &plain_size, (unsigned char *)(encrypted_value + 3), encrypted_value_size - 3);
   int fin_size = 0;
   EVP_DecryptFinal_ex(&ctx, (unsigned char *)(plain + plain_size), &fin_size);
   nicookie_debug_int(plain_size);
@@ -107,10 +91,33 @@ char *nicookie_osx_chrome(char *buf, size_t size) {
   nicookie_debug_str(plain);
   EVP_CIPHER_CTX_cleanup(&ctx);
 
-
-  sqlite3_close(db);
-  free(cookies_path);
+  free(enc_key);
 
   return plain;
 
+}
+
+static unsigned char *nicookie_osx_chrome_key(void) {
+  char *cmd = "security find-generic-password -w -a Chrome -s 'Chrome Safe Storage'";
+  FILE *cmd_out = popen(cmd, "r");
+  char sec_key[256];
+  if (fgets(sec_key, 256, cmd_out) == NULL) {
+    return NULL;
+  }
+  nicookie_str_chomp(sec_key);
+  nicookie_debug_str(sec_key);
+
+  // 16
+  unsigned char *enc_key = malloc(16);
+  if (enc_key == NULL) {
+    return NULL;
+  }
+
+  int iterations = 1003;
+  char *salt = "saltysalt";
+  int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1(sec_key, strlen(sec_key),
+      salt, strlen(salt),
+      iterations, 16, enc_key);
+  nicookie_debug_int(pbkdf2_r);
+  return enc_key;
 }

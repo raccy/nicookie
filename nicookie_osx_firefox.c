@@ -12,11 +12,7 @@
 #include "nicookie_osx.h"
 #include "nicookie_firefox.h"
 
-// #define
-// OSX_FIREFOX_PROFILE_COOKIE_FILE_SUFFIX
 // "${HOME}/Library/Application Support/Firefox/profiles.ini"
-// "${HOME}/.mozilla/firefox/profiles.ini"
-// "${APPDATA}\\Mozilla\\Firefox\\profiles.ini"
 
 char *nicookie_osx_firefox(char *buf, size_t size) {
   char *profile_ini = nicookie_str_with_env(

@@ -12,7 +12,6 @@
 #include "nicookie_lin.h"
 #include "nicookie_firefox.h"
 
-// #define
 // "${HOME}/.mozilla/firefox/profiles.ini"
 
 char *nicookie_lin_firefox(char *buf, size_t size) {
