@@ -8,6 +8,7 @@
 
 #include <stddef.h>
 
+char *nicookie_firefox_profiles(char *buf, size_t size, char *profiles_ini);
 char *nicookie_firefox_cookies_path(const char *profile);
 char *nicookie_firefox_cookies(char *buf, size_t size,
     const char *cookies_path);

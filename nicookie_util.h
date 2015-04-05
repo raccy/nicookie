@@ -17,12 +17,6 @@
 #include "nicookie.h"
 #include "nicookie_config.h"
 
-#ifdef _WIN32
-#define NICOOKIE_PATH_SEPARATOR '\\'
-#else
-#define NICOOKIE_PATH_SEPARATOR '/'
-#endif
-
 static inline uint32_t fget_uint32_be(FILE *stream) {
   uint32_t n = 0;
   for (int i = 0; i < 4; i++) {
@@ -104,7 +98,7 @@ static inline char *fgetstr(FILE *stream, size_t n, char *s) {
 }
 
 char *nicookie_str_with_env(const char *str, const char *env);
-
 int nicookie_sqlite3(const char *filename, const char *sql, ...);
+char *nicookie_str_chomp(char *str);
 
 #endif // nicookie_util_H

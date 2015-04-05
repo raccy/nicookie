@@ -33,3 +33,4 @@ char *nicookie_get_cookie(char *buf, size_t size, int browser);
 
 ERANGE: サイズが越えたとき。
 ENOSYS: 実装されていないとき。
+ENSIG

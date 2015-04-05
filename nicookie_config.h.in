@@ -12,19 +12,29 @@
 #define NICOOKIE_COOKIE_NAME "user_session"
 #define NICOOKIE_COOKIE_PATH "/"
 
+#ifdef _WIN32
+#define NICOOKIE_PATH_SEPARATOR '\\'
+#else
+#define NICOOKIE_PATH_SEPARATOR '/'
+#endif
+
 #ifdef DEBUG
 #include <stdio.h>
+#include <string.h>
 #define nicookie_debug(format, ...) \
   fprintf(stderr, \
           "[NICOOKIE_DEBUG:%s:%d:%s] " format, \
-          __FILE__, __LINE__, __func__, \
+          strrchr(__FILE__, NICOOKIE_PATH_SEPARATOR) ? \
+            strrchr(__FILE__, NICOOKIE_PATH_SEPARATOR) + 1 : __FILE__, \
+          __LINE__, \
+          __func__, \
           ##__VA_ARGS__)
 #else
 #define nicookie_debug(format, ...)
 #endif
 
 #define nicookie_debug_str(name) \
-  nicookie_debug("str: " #name " = %16s\n", (name))
+  nicookie_debug("str: " #name " = %s\n", (name))
 #define nicookie_debug_ptr(name) \
   nicookie_debug("ptr: " #name " = %p\n", (name))
 #define nicookie_debug_int(name) \

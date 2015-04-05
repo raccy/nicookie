@@ -65,7 +65,7 @@ int nicookie_sqlite3(const char *filename, const char *sql, ...) {
   }
 
   sqlite3_stmt *stmt = NULL;
-  result = sqlite3_prepare(db, sql, -1, &stmt, NULL);
+  result = sqlite3_prepare_v2(db, sql, -1, &stmt, NULL);
   nicookie_debug_int(result);
   if (result != SQLITE_OK) {
     sqlite3_close(db);
@@ -76,10 +76,11 @@ int nicookie_sqlite3(const char *filename, const char *sql, ...) {
 
   result = sqlite3_step(stmt);
   nicookie_debug_int(result);
-  if (result != SQLITE_OK) {
+  if (result != SQLITE_ROW) {
     sqlite3_close(db);
     sqlite3_finalize(stmt);
     va_end(list);
+    errno = ENOENT;
     return result;
   }
 
@@ -143,4 +144,23 @@ int nicookie_sqlite3(const char *filename, const char *sql, ...) {
   va_end(list);
 
   return SQLITE_OK; // = 0
+}
+
+// similar Ruby's String#chomp!
+char *nicookie_str_chomp(char *str) {
+  if (str == NULL) return NULL;
+
+  size_t length = strlen(str);
+  if (length == 0) return str;
+
+  if (str[length - 1] == '\n') {
+    str[length - 1] = '\0';
+    if (length > 1 && str[length - 2] == '\r') {
+      str[length - 2] = '\0';
+    }
+  } else if (str[length - 1] == '\r') {
+    str[length - 1] = '\0';
+  }
+
+  return str;
 }
