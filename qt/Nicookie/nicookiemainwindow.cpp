@@ -1,3 +1,5 @@
+#include <QMessageBox>
+
 #include "nicookiemainwindow.h"
 #include "ui_nicookiemainwindow.h"
 
@@ -20,4 +22,8 @@ NicookieMainWindow::~NicookieMainWindow()
 void NicookieMainWindow::on_pushButton_clicked()
 {
     ui->lineEdit->setText(nicookie->getUserSession(ui->comboBox->currentText()));
+    if (nicookie->hasError()) {
+        QString error = nicookie->errorString();
+        QMessageBox::information(this, "Nicookie", error);
+    }
 }
