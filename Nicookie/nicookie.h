@@ -6,6 +6,7 @@
 #include <QStringList>
 #include <QMap>
 #include <QVariant>
+#include <QByteArray>
 
 class Nicookie : public QObject
 {
@@ -45,6 +46,9 @@ private:
     bool firefoxFindValue(const QString &cookies_path);
 
     bool findChrome();
+    bool chromeFindValue(const QString &cookies_path);
+    QString chromeDecrypt(const QByteArray &encrypt_data);
+
     bool findOpera();
 
     bool querySqlite3(const QString &sqlite3_file,

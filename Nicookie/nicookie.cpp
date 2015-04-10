@@ -125,7 +125,9 @@ bool Nicookie::findFirefox()
     QStringList profile_list = firefoxGetProfileList(profile_ini);
     if (profile_list.isEmpty()) return false;
     for (auto &profile_path: profile_list) {
-        if (firefoxFindValue(profile_path)) return true;
+        if (firefoxFindValue(QDir(profile_path).filePath("cookies.sqlite"))) {
+            return true;
+        }
     }
     return false;
 }
@@ -145,11 +147,13 @@ QStringList Nicookie::firefoxGetProfileList(const QString &profile_ini)
         this->error = "プロファイル設定ファイルの読み込みに失敗しました。";
         return list;
     }
+
     QSettings profile_settings(profile_temp_path, QSettings::IniFormat);
     if (profile_settings.status() != QSettings::NoError) {
         this->error = "プロファイル設定ファイルが正しくありません。";
         return list;
     }
+
     for (auto &group: profile_settings.childGroups()) {
         if (group.startsWith("Profile")) {
             profile_settings.beginGroup(group);
@@ -175,7 +179,7 @@ QStringList Nicookie::firefoxGetProfileList(const QString &profile_ini)
     return list;
 }
 
-bool Nicookie::firefoxFindValue(const QString &profile_poth)
+bool Nicookie::firefoxFindValue(const QString &cookies_path)
 {
     QString query = "SELECT value FROM moz_cookies WHERE "
                     "host = :host AND "
@@ -188,19 +192,62 @@ bool Nicookie::firefoxFindValue(const QString &profile_poth)
     QMap<QString, QVariant> values;
     values["value"] = QVariant();
 
-    QString cookies_path = QDir(profile_poth).filePath("cookies.sqlite");
-    if (querySqlite3(cookies_path, query, placeholders, values)) {
-        this->userSession = values["value"].toString();
-        return true;
-    } else {
+    if (!querySqlite3(cookies_path, query, placeholders, values)) {
         return false;
     }
+
+    this->userSession = values["value"].toString();
+    return true;
 }
 
 bool Nicookie::findChrome()
 {
-    this->error = "まだ、実装してないよ。";
-    return false;
+    QString cookies_path;
+#if defined(Q_OS_WIN)
+    // TODO
+    cookies_path += QProcessEnvironment::systemEnvironment().value("APPDATA");
+    cookies_path += "\\Mozilla\\Firefox\\profiles.ini";
+#elif defined(Q_OS_OSX)
+    cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
+    cookies_path +=
+            "/Library/Application Support/Google/Chrome/Default/Cookies";
+#else
+    // TODO
+    cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
+    cookies_path += "/.mozilla/firefox/profiles.ini";
+#endif
+    return chromeFindValue(cookies_path);
+}
+
+bool Nicookie::chromeFindValue(const QString &cookies_path)
+{
+    QString query = "SELECT value,encrypted_value FROM cookies WHERE "
+                    "host_key = :host AND "
+                    "name = :name AND "
+                    "path = :path;";
+    QMap<QString, QVariant> placeholders;
+    placeholders[":host"] = Nicookie::COOKIE_HOST;
+    placeholders[":name"] = Nicookie::COOKIE_NAME;
+    placeholders[":path"] = Nicookie::COOKIE_PATH;
+    QMap<QString, QVariant> values;
+    values["value"] = QVariant();
+    values["encrypted_value"] = QVariant();
+
+    if (!querySqlite3(cookies_path, query, placeholders, values)) {
+        return false;
+    }
+
+    this->userSession = values["value"].toString();
+    if (this->userSession.isEmpty()) {
+        this->userSession = chromeDecrypt(
+                    values["encrypted_value"].toByteArray());
+    }
+    return !this->userSession.isEmpty();
+}
+
+QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
+{
+    return QString();
 }
 
 bool Nicookie::findOpera()
@@ -223,6 +270,7 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
                           "ライブラリが不足していませんか？";
             break;
         }
+
         db.setDatabaseName(sqlite3_file);
         if (!db.open()) {
             this->error = "SQLiete3のファイルを開けませんでした。";
@@ -236,6 +284,7 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
             db.close();
             break;
         }
+
         for (auto &name: placeholders.keys()) {
             sql_query.bindValue(name, placeholders[name]);
         }
@@ -245,12 +294,14 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
             db.close();
             break;
         }
+
         if (!sql_query.first()) {
             this->error = "検索したレコードが見つかりませんでした。";
             sql_query.finish();
             db.close();
             break;
         }
+
         for (auto &name: values.keys()) {
             values[name] = sql_query.value(name);
         }
