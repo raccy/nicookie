@@ -17,7 +17,7 @@ const QString Nicookie::COOKIE_HOST = ".nicovideo.jp";
 const QString Nicookie::COOKIE_NAME = "user_session";
 const QString Nicookie::COOKIE_PATH = "/";
 
-const QString Nicookie::INTERNET_EXPLORE = "Internet Explorer";
+const QString Nicookie::INTERNET_EXPLORER = "Internet Explorer";
 const QString Nicookie::SAFARI = "Safari";
 const QString Nicookie::FIREFOX = "Mozilla Firefox";
 const QString Nicookie::CHROME = "Google Chrome";
@@ -38,7 +38,7 @@ QString Nicookie::getUserSession(QString browser)
 {
     this->error = QString();
     this->userSession = QString();
-    if (browser == Nicookie::INTERNET_EXPLORE) {
+    if (browser == Nicookie::INTERNET_EXPLORER) {
 #ifdef Q_OS_WIN
         findInternetExplorer();
 #else
@@ -180,7 +180,7 @@ bool Nicookie::firefoxFindValue(const QString &profile_poth)
     QString query = "SELECT value FROM moz_cookies WHERE "
                     "host = :host AND "
                     "name = :name AND "
-                    "path = :path";
+                    "path = :path;";
     QMap<QString, QVariant> placeholders;
     placeholders[":host"] = Nicookie::COOKIE_HOST;
     placeholders[":name"] = Nicookie::COOKIE_NAME;
@@ -188,7 +188,7 @@ bool Nicookie::firefoxFindValue(const QString &profile_poth)
     QMap<QString, QVariant> values;
     values["value"] = QVariant();
 
-    QString cookies_path = QDir(profile_poth).filePath("cookies.sql");
+    QString cookies_path = QDir(profile_poth).filePath("cookies.sqlite");
     if (querySqlite3(cookies_path, query, placeholders, values)) {
         this->userSession = values["value"].toString();
         return true;
@@ -196,9 +196,6 @@ bool Nicookie::firefoxFindValue(const QString &profile_poth)
         return false;
     }
 }
-
-
-
 
 bool Nicookie::findChrome()
 {
@@ -217,7 +214,6 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
                                    const QMap<QString, QVariant> &placeholders,
                                    QMap<QString, QVariant> &values)
 {
-    qDebug() << sqlite3_file;
     bool result = false;
     do {
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE",
@@ -234,18 +230,8 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
             break;
         }
 
-        qDebug() << db.tables().size();
-        for (auto &table: db.tables()) {
-            qDebug() << table;
-        }
-
-
         QSqlQuery sql_query(db);
-
-        qDebug() << query;
         if (!sql_query.prepare(query)) {
-            qDebug() << db.lastError().text();
-            qDebug() << sql_query.lastError().text();
             this->error = "SQL文が不正です。";
             db.close();
             break;

@@ -15,7 +15,7 @@ public:
     static const QString COOKIE_NAME;
     static const QString COOKIE_PATH;
 
-    static const QString INTERNET_EXPLORE;
+    static const QString INTERNET_EXPLORER;
     static const QString SAFARI;
     static const QString FIREFOX;
     static const QString CHROME;
