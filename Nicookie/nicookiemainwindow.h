@@ -9,18 +9,18 @@ class NicookieMainWindow;
 
 class NicookieMainWindow : public QMainWindow
 {
-    Q_OBJECT
+	Q_OBJECT
 
 public:
-    explicit NicookieMainWindow(QWidget *parent = 0);
-    ~NicookieMainWindow();
+	explicit NicookieMainWindow(QWidget *parent = 0);
+	~NicookieMainWindow();
 
 private slots:
-    void on_pushButton_clicked();
+	void on_pushButton_clicked();
 
 private:
-    Ui::NicookieMainWindow *ui;
-    Nicookie *nicookie;
+	Ui::NicookieMainWindow *ui;
+	Nicookie *nicookie;
 };
 
 #endif // NICOOKIEMAINWINDOW_H

@@ -3,10 +3,10 @@
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-    NicookieMainWindow w;
+	QApplication a(argc, argv);
+	NicookieMainWindow w;
 
-    w.show();
+	w.show();
 
-    return a.exec();
+	return a.exec();
 }
