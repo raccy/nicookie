@@ -6,7 +6,8 @@
 
 CONFIG += c++11
 
-QT       += core gui sql
+
+QT += core gui sql
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -14,11 +15,11 @@ TARGET = Nicookie
 TEMPLATE = app
 
 
-SOURCES += main.cpp\
+SOURCES	+= main.cpp\
         nicookiemainwindow.cpp \
-    nicookie.cpp
+        nicookie.cpp
 
-HEADERS  += nicookiemainwindow.h \
-    nicookie.h
+HEADERS	+= nicookiemainwindow.h \
+        nicookie.h
 
-FORMS    += nicookiemainwindow.ui
+FORMS += nicookiemainwindow.ui
