@@ -11,6 +11,17 @@
 
 #include <QDebug>
 
+#ifdef Q_OS_WIN
+// TODO: Winでの暗号化
+#else // Q_OS_WIN
+#ifdef Q_OS_OSX
+#include <Security/Security.h>
+#endif // Q_OS_OSX
+#include <openssl/aes.h>
+#include <openssl/evp.h>
+#include <openssl/bio.h>
+#endif // Q_OS_WIN
+
 #include "nicookie.h"
 
 const QString Nicookie::COOKIE_HOST = ".nicovideo.jp";
@@ -212,9 +223,8 @@ bool Nicookie::findChrome()
     cookies_path +=
             "/Library/Application Support/Google/Chrome/Default/Cookies";
 #else
-    // TODO
     cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
-    cookies_path += "/.mozilla/firefox/profiles.ini";
+    cookies_path += "/.config/chromium/Default/Cookies";
 #endif
     return chromeFindValue(cookies_path);
 }
@@ -247,7 +257,127 @@ bool Nicookie::chromeFindValue(const QString &cookies_path)
 
 QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
 {
-    return QString();
+    QString data;
+#ifdef Q_OS_WIN
+    // TODO
+
+#else // O_QS_WIN
+
+#ifdef Q_OS_OSX
+    // https://developer.apple.com/library/mac/documentation/Security/Reference/keychainservices/index.html#//apple_ref/c/func/SecKeychainFindGenericPassword
+    UInt32 password_size = 0;
+    void *password = NULL;
+    OSStatus os_status;
+    os_status = SecKeychainFindGenericPassword(NULL,
+                                               19, "Chrome Safe Storage",
+                                               6, "Chrome",
+                                               &password_size, &password,
+                                               NULL);
+    qDebug() << password_size;
+    qDebug() << QString(QByteArray((char *)password, password_size));
+    if (password_size == 0) {
+        this->error = "キーチェーンから暗号化キーを取得できませんでした。";
+        SecKeychainItemFreeContent(NULL, password);
+        return data;
+    }
+#else // Q_OS_OSX
+    int password_size = 7;
+    void *password = (void *)"peanuts";
+#endif // Q_OS_OSX
+
+    const int enc_key_size = 16;
+    unsigned char enc_key[enc_key_size];
+
+#ifdef Q_OS_OSX
+    int iterations = 1003;
+#else // Q_OS_OSX
+    int iterations = 1;
+#endif // Q_OS_OSX
+
+    const char *salt = "saltysalt";
+    int pbkdf2_r = PKCS5_PBKDF2_HMAC_SHA1((char *)password, password_size,
+                                          (unsigned char *)salt, strlen(salt),
+                                          iterations,
+                                          enc_key_size, enc_key);
+    if (!pbkdf2_r) {
+        this->error = "Chromeの暗号化キーが取得できませんでした。";
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+        return data;
+    }
+
+    const int iv_size = 16;
+    unsigned char iv[iv_size];
+    for (int i = 0; i < iv_size; i++) iv[i] = ' ';
+
+    // alwayes enc size >= dec size
+    int plain_value_size = encrypt_data.size();
+    char *plain_value = (char *)malloc(plain_value_size);
+    if (plain_value == NULL) {
+        this->error = "メモリ領域の確保に失敗しました。";
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+        return data;
+    }
+
+    int result = 1;
+    EVP_CIPHER_CTX ctx;
+    EVP_CIPHER_CTX_init(&ctx);
+
+    result = EVP_DecryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, enc_key, iv);
+    if (!result) {
+        this->error = "復号エンジンの初期化に失敗しました。";
+        EVP_CIPHER_CTX_cleanup(&ctx);
+        free(plain_value);
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+        return data;
+    }
+
+    result = EVP_DecryptUpdate(&ctx,
+                               (unsigned char *)plain_value,
+                               &plain_value_size,
+                               (unsigned char *)(encrypt_data.data() + 3),
+                               encrypt_data.size() - 3);
+    if (!result) {
+        this->error = "複合に失敗しました。";
+        EVP_CIPHER_CTX_cleanup(&ctx);
+        free(plain_value);
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+        return data;
+    }
+
+    int fin_size = 0;
+    result = EVP_DecryptFinal_ex(&ctx,
+                                 (unsigned char *)(plain_value +
+                                                   plain_value_size),
+                                 &fin_size);
+    if (!result) {
+        this->error = "複合の最終処理に失敗しました。";
+        EVP_CIPHER_CTX_cleanup(&ctx);
+        free(plain_value);
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+        return data;
+    }
+
+    EVP_CIPHER_CTX_cleanup(&ctx);
+
+    plain_value[plain_value_size + fin_size] = '\0';
+    data = plain_value;
+
+    free(plain_value);
+#ifdef Q_OS_OSX
+        SecKeychainItemFreeContent(NULL, password);
+#endif // Q_OS_OSX
+#endif // O_QS_WIN
+    return data;
 }
 
 bool Nicookie::findOpera()

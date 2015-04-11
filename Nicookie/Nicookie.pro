@@ -10,6 +10,9 @@ CONFIG += c++11
 QT += core gui
 QT += sql
 
+unix: LIBS += -lcrypto
+mac: LIBS += -framework Security
+
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 TARGET = Nicookie
@@ -24,3 +27,5 @@ HEADERS	+= nicookiemainwindow.h \
         nicookie.h
 
 FORMS += nicookiemainwindow.ui
+
+
