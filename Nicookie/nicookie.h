@@ -3,7 +3,6 @@
  * - safari http://www.securitylearn.net/2012/10/27/cookies-binarycookies-reader/
  * - chrome http://n8henrie.com/2014/05/decrypt-chrome-cookies-with-python/
  * - chrome(win) https://gist.github.com/DakuTree/98c8362fb424351b803e
- * - opera https://gist.github.com/gwarser/1324501
  * - win http://raidersec.blogspot.jp/2013/06/how-browsers-store-your-passwords-and.html
  *
  *
@@ -27,6 +26,7 @@ class Nicookie : public QObject
 {
     Q_OBJECT
 public:
+    static const QString COOKIE_URL;
     static const QString COOKIE_HOST;
     static const QString COOKIE_NAME;
     static const QString COOKIE_PATH;

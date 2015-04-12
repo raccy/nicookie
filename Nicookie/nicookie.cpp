@@ -18,9 +18,14 @@
 #include <QDataStream>
 #endif
 
+// for IE
+#ifdef Q_OS_WIN
+#include <Wininet.h>
+#endif
+
 // for Chrome
 #ifdef Q_OS_WIN
-// TODO: Winでの暗号化
+#include <Wincrypt.h>
 #else // Q_OS_WIN
 #ifdef Q_OS_OSX
 #include <Security/Security.h>
@@ -32,6 +37,7 @@
 
 #include "nicookie.h"
 
+const QString Nicookie::COOKIE_URL = "http://live.nicovideo.jp/";
 const QString Nicookie::COOKIE_HOST = ".nicovideo.jp";
 const QString Nicookie::COOKIE_NAME = "user_session";
 const QString Nicookie::COOKIE_PATH = "/";
@@ -90,6 +96,7 @@ QStringList Nicookie::getBrowserList()
 #endif // Q_OS_OSX
     list << Nicookie::FIREFOX;
     list << Nicookie::CHROME;
+//    list << Nicookie::OPERA;
     return list;
 }
 
@@ -109,8 +116,20 @@ bool Nicookie::hasError()
 // ## Internet Explorer ##
 bool Nicookie::findInternetExplorer()
 {
-    this->error = "まだ、実装してないよ。";
-    return false;
+    char *cookie_data = NULL;
+    int cookie_data_size = 0;
+    if (InternetGetCookieA(Nicookie::COOKIE_URL.toStdString().c_str(),
+                           Nicookie::COOKIE_NAME.toStdString().c_str(),
+                           cookie_data,
+                           &cookie_data_size)) {
+        this->userSession = cookie_data;
+        LocalFree(cookie_data);
+        return true;
+    } else {
+        this->error = "データが見つかりませんでした。";
+        LocalFree(cookie_data);
+        return false;
+    }
 }
 #endif // Q_OS_WIN
 
@@ -391,8 +410,20 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
 {
     QString data;
 #ifdef Q_OS_WIN
-    // TODO
-
+    DATA_BLOB encrypt_data_blob;
+    encryt_data_blob.pbData = const_cast<BYTE*>(encrypt_data.data());
+    encryt_data_blob.cbData = static_cast<DWORD>(encrypt_data.size());
+    DATA_BLOB plain_data_blob;
+    BOOL result = CryptUnprotectData(&encrypt_data_blob,
+                                     NULL, NULL, NULL, NULL, 0,
+                                     &plain_data_blob);
+    if (!result) {
+        this->error = "複合化に失敗しました。";
+        return QString();
+    }
+    data = (QByteArray(static_cast<const char *>(plain_data_blob.pbData),
+                       plain_data_blob.cbData)));
+    LocalFree(plain_data_blob.pbData);
 #else // O_QS_WIN
 
 #ifdef Q_OS_OSX
@@ -512,6 +543,14 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
 
 bool Nicookie::findOpera()
 {
+    // TODO: よくわかんですたい
+//    QString cookies_path;
+//    cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
+//    cookies_path +=
+//            "/Library/Application Support/com.operasoftware.Opera/Cookies";
+//    return operaFindValue(cookies_path);
+    // Chromeと同じSqlite3だが暗号キーとかが異なる様子。
+    // 復号の暗号キーについて詳細不明。
     this->error = "まだ、実装してないよ。";
     return false;
 }
