@@ -10,8 +10,11 @@ CONFIG += c++11
 QT += core gui
 QT += sql
 
-unix: LIBS += -lcrypto
+win32: LIBS += -lwininet
+win32: LIBS += -liepmapi
+win32: LIBS += -lcrypt32
 mac: LIBS += -framework Security
+unix: LIBS += -lcrypto
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
@@ -27,5 +30,6 @@ HEADERS	+= nicookiemainwindow.h \
         nicookie.h
 
 FORMS += nicookiemainwindow.ui
+
 
 

@@ -20,12 +20,14 @@
 
 // for IE
 #ifdef Q_OS_WIN
-#include <Wininet.h>
+#include <windows.h>
+#include <wininet.h>
+#include <iepmapi.h>
 #endif
 
 // for Chrome
 #ifdef Q_OS_WIN
-#include <Wincrypt.h>
+#include <wincrypt.h>
 #else // Q_OS_WIN
 #ifdef Q_OS_OSX
 #include <Security/Security.h>
@@ -37,7 +39,7 @@
 
 #include "nicookie.h"
 
-const QString Nicookie::COOKIE_URL = "http://live.nicovideo.jp/";
+const QString Nicookie::COOKIE_URL = "http://www.nicovideo.jp/";
 const QString Nicookie::COOKIE_HOST = ".nicovideo.jp";
 const QString Nicookie::COOKIE_NAME = "user_session";
 const QString Nicookie::COOKIE_PATH = "/";
@@ -116,18 +118,27 @@ bool Nicookie::hasError()
 // ## Internet Explorer ##
 bool Nicookie::findInternetExplorer()
 {
-    char *cookie_data = NULL;
-    int cookie_data_size = 0;
-    if (InternetGetCookieA(Nicookie::COOKIE_URL.toStdString().c_str(),
-                           Nicookie::COOKIE_NAME.toStdString().c_str(),
-                           cookie_data,
-                           &cookie_data_size)) {
-        this->userSession = cookie_data;
-        LocalFree(cookie_data);
+    WCHAR cookie_data[256];
+    DWORD cookie_data_size = 256;
+    BOOL result = false;
+    HRESULT hr;
+    hr = IEGetProtectedModeCookie(Nicookie::COOKIE_URL.toStdWString().c_str(),
+                                  Nicookie::COOKIE_NAME.toStdWString().c_str(),
+                                  cookie_data,
+                                  &cookie_data_size,
+                                  0);
+    result = (hr == S_OK);
+    if (!result) {
+        result = InternetGetCookieW(Nicookie::COOKIE_URL.toStdWString().c_str(),
+                                    Nicookie::COOKIE_NAME.toStdWString().c_str(),
+                                    cookie_data,
+                                    &cookie_data_size);
+    }
+    if (result) {
+        this->userSession = QString::fromStdWString(std::wstring(cookie_data));
         return true;
     } else {
         this->error = "データが見つかりませんでした。";
-        LocalFree(cookie_data);
         return false;
     }
 }
@@ -364,11 +375,8 @@ bool Nicookie::findChrome()
 {
     QString cookies_path;
 #if defined(Q_OS_WIN)
-    // TODO
-    this->error = "窓なんて捨てちまえ！";
-    return fales;
-    cookies_path += QProcessEnvironment::systemEnvironment().value("APPDATA");
-    cookies_path += "\\Mozilla\\Firefox\\profiles.ini";
+    cookies_path += QProcessEnvironment::systemEnvironment().value("LOCALAPPDATA");
+    cookies_path += "\\Google\\Chrome\\User Data\\Default\\Cookies";
 #elif defined(Q_OS_OSX)
     cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
     cookies_path +=
@@ -411,8 +419,8 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
     QString data;
 #ifdef Q_OS_WIN
     DATA_BLOB encrypt_data_blob;
-    encryt_data_blob.pbData = const_cast<BYTE*>(encrypt_data.data());
-    encryt_data_blob.cbData = static_cast<DWORD>(encrypt_data.size());
+    encrypt_data_blob.pbData = (BYTE*)(encrypt_data.data());
+    encrypt_data_blob.cbData = static_cast<DWORD>(encrypt_data.size());
     DATA_BLOB plain_data_blob;
     BOOL result = CryptUnprotectData(&encrypt_data_blob,
                                      NULL, NULL, NULL, NULL, 0,
@@ -421,8 +429,8 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
         this->error = "複合化に失敗しました。";
         return QString();
     }
-    data = (QByteArray(static_cast<const char *>(plain_data_blob.pbData),
-                       plain_data_blob.cbData)));
+    data = (QByteArray((char *)(plain_data_blob.pbData),
+                       plain_data_blob.cbData));
     LocalFree(plain_data_blob.pbData);
 #else // O_QS_WIN
 
