@@ -4,13 +4,21 @@
 #include <QSettings>
 #include <QFileInfo>
 #include <QDir>
+#include <QIODevice>
 
+// for Firefox and Chrome
 #include <QSqlDatabase>
 #include <QSqlQuery>
 #include <QSqlError>
 
 #include <QDebug>
 
+// for Safari
+#ifdef Q_OS_OSX
+#include <QDataStream>
+#endif
+
+// for Chrome
 #ifdef Q_OS_WIN
 // TODO: Winでの暗号化
 #else // Q_OS_WIN
@@ -112,8 +120,130 @@ bool Nicookie::findInternetExplorer()
 // ## Safari ##
 bool Nicookie::findSafari()
 {
-    this->error = "まだ、実装してないよ。";
+    QString cookies_path;
+    cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
+    cookies_path += "/Library/Cookies/Cookies.binarycookies";
+
+    QFile cookies_file(cookies_path);
+    if (!cookies_file.exists()) {
+        this->error = "クッキーファイルがありません。";
+        return false;
+    }
+
+    if (!cookies_file.open(QIODevice::ReadOnly)) {
+        this->error = "クッキーファイルを開けませんでした。";
+        return false;
+    }
+
+    bool result = safariFindFile(cookies_file);
+    cookies_file.close();
+    return result;
+}
+bool Nicookie::safariFindFile(QIODevice &device) {
+    // Signature
+    QByteArray headr_signature("cook", 4);
+    if (headr_signature != device.read(4)) {
+        this->error = "データ構造が不正です。";
+        return false;
+    }
+
+    // No. of pages
+    quint32 page_num = readUint32BE(device);
+    if (page_num == 0) {
+        this->error = "データがありません。";
+        return false;
+    }
+
+    // Page N Size
+    QList<quint32> page_size_list;
+    for (quint32 i = 0; i < page_num; ++i) {
+        page_size_list.append(readUint32BE(device));
+    }
+    if (device.atEnd()) {
+        this->error = "データ構造が不正です。";
+        return false;
+    }
+
+    // Page N
+    for (auto &page_size: page_size_list) {
+        qint64 pos = device.pos();
+        if (safariFindPage(device)) return true;
+        device.seek(pos + page_size);
+    }
+
+    if (!hasError()) {
+        this->error = "データが見つかりませんでした。";
+    }
     return false;
+}
+
+bool Nicookie::safariFindPage(QIODevice &device)
+{
+    qint64 begin_pos = device.pos();
+
+    // Page Header
+    quint32 page_header = readUint32BE(device);
+    if (page_header != 0x00000100) {
+        this->error = "データ構造が不正です。";
+        return false;
+    }
+
+    // No. of cookies
+    quint32 cookie_num = readUint32LE(device);
+    if (cookie_num == 0) {
+        // エラーじゃ無い？
+        return false;
+    }
+
+    // Cookie N offset
+    QList<quint32> cookie_offset_list;
+    for (quint32 i = 0; i < cookie_num; i++) {
+        cookie_offset_list.append(readUint32LE(device));
+    }
+
+    // Cookie N
+    for (auto &cookie_offset: cookie_offset_list) {
+        device.seek(begin_pos + cookie_offset);
+        if (safariFindCookie(device)) return true;
+    }
+
+    return false;
+}
+
+bool Nicookie::safariFindCookie(QIODevice &device)
+{
+    qint64 begin_pos = device.pos();
+
+    quint32 cookie_size = readUint32LE(device);
+    readUint32LE(device);
+    quint32 flags = readUint32LE(device);
+    readUint32LE(device);
+    quint32 url_offset = readUint32LE(device);
+    quint32 name_offset = readUint32LE(device);
+    quint32 path_offset = readUint32LE(device);
+    quint32 value_offset = readUint32LE(device);
+
+    // check url
+    device.seek(begin_pos + url_offset);
+    if (!checkSameStr(device, Nicookie::COOKIE_HOST)) return false;
+
+    // check name
+    device.seek(begin_pos + name_offset);
+    if (!checkSameStr(device, Nicookie::COOKIE_NAME)) return false;
+
+    // check path
+    device.seek(begin_pos + path_offset);
+    if (!checkSameStr(device, Nicookie::COOKIE_PATH)) return false;
+
+    device.seek(begin_pos + value_offset);
+    QString str = readStr(device);
+    if (str.isEmpty()) {
+        this->error = "クッキーが空です。";
+        return false;
+    } else {
+        this->userSession = str;
+        return true;
+    }
 }
 #endif // Q_OS_OSX
 
@@ -216,6 +346,8 @@ bool Nicookie::findChrome()
     QString cookies_path;
 #if defined(Q_OS_WIN)
     // TODO
+    this->error = "窓なんて捨てちまえ！";
+    return fales;
     cookies_path += QProcessEnvironment::systemEnvironment().value("APPDATA");
     cookies_path += "\\Mozilla\\Firefox\\profiles.ini";
 #elif defined(Q_OS_OSX)
@@ -273,8 +405,6 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                                6, "Chrome",
                                                &password_size, &password,
                                                NULL);
-    qDebug() << password_size;
-    qDebug() << QString(QByteArray((char *)password, password_size));
     if (password_size == 0) {
         this->error = "キーチェーンから暗号化キーを取得できませんでした。";
         SecKeychainItemFreeContent(NULL, password);
@@ -441,5 +571,59 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
     } while(false);
     QSqlDatabase::removeDatabase("nicookie_sqlite3");
     return result;
+}
+
+quint32 Nicookie::readUint32BE(QIODevice &device)
+{
+    QDataStream stream(device.read(4));
+    stream.setByteOrder(QDataStream::BigEndian);
+    quint32 i;
+    stream >> i;
+    return i;
+}
+
+quint32 Nicookie::readUint32LE(QIODevice &device)
+{
+    QDataStream stream(device.read(4));
+    stream.setByteOrder(QDataStream::LittleEndian);
+    quint32 i;
+    stream >> i;
+    return i;
+}
+
+bool Nicookie::checkSameStr(QIODevice &device, const QString &str)
+{
+    char input_c;
+    for (auto &c: str) {
+        if (!device.getChar(&input_c)) {
+            this->error = "データを読み込めませんでした。";
+            return false;
+        }
+        if (c != input_c) return false;
+    }
+    if (!device.getChar(&input_c)) {
+        this->error = "データを読み込めませんでした。";
+        return false;
+    }
+    if (input_c != '\0') return false;
+    return true;
+}
+
+QString Nicookie::readStr(QIODevice &device)
+{
+    QString str;
+    while (true) {
+        char input_c;
+        if (!device.getChar(&input_c)) {
+            this->error = "データを読み込めませんでした。";
+            return QString();
+        }
+        if (input_c == '\0') {
+            break;
+        } else {
+            str.append(input_c);
+        }
+    }
+    return str;
 }
 

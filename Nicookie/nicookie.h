@@ -21,6 +21,7 @@
 #include <QMap>
 #include <QVariant>
 #include <QByteArray>
+#include <QIODevice>
 
 class Nicookie : public QObject
 {
@@ -54,6 +55,9 @@ private:
 #endif // Q_OS_WIN
 #ifdef Q_OS_OSX
     bool findSafari();
+    bool safariFindFile(QIODevice &device);
+    bool safariFindPage(QIODevice &device);
+    bool safariFindCookie(QIODevice &device);
 #endif // Q_OS_OSX
     bool findFirefox();
     QStringList firefoxGetProfileList(const QString &profile_ini);
@@ -69,7 +73,10 @@ private:
                                  const QString &query,
                                  const QMap<QString, QVariant> &placeholders,
                                  QMap<QString, QVariant> &values);
-
+    quint32 readUint32BE(QIODevice &device);
+    quint32 readUint32LE(QIODevice &device);
+    bool checkSameStr(QIODevice &device, const QString &str);
+    QString readStr(QIODevice &device);
 signals:
 
 public slots:
