@@ -17,6 +17,7 @@ NicookieMainWindow::NicookieMainWindow(QWidget *parent) :
 NicookieMainWindow::~NicookieMainWindow()
 {
     delete ui;
+    delete nicookie;
 }
 
 void NicookieMainWindow::on_pushButton_clicked()

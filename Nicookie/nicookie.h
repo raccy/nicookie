@@ -1,16 +1,16 @@
 ﻿/*
- *
- * - safari http://www.securitylearn.net/2012/10/27/cookies-binarycookies-reader/
- * - chrome http://n8henrie.com/2014/05/decrypt-chrome-cookies-with-python/
- * - chrome(win) https://gist.github.com/DakuTree/98c8362fb424351b803e
- * - win http://raidersec.blogspot.jp/2013/06/how-browsers-store-your-passwords-and.html
- *
- *
- *
+ * Nicookie.h ニコニコ動画ユーザセッションクッキー取得ライブラリ for Qt
+ * 使い方
+ *   Nicookie *nicookie = new Nicookie(this);
+ *   // リストを取得
+ *   QStringList list = nicooki->getBrowserList();
+ *   // どれか一個指定して実行。
+ *   QString user_session = nicookie->getUserSession(list[0]);
+ *   if (nicookie->hasError()) {
+ *     // エラー処理
+ *     qError() << nicookie->errorString();
+ *   }
  */
-
-
-
 #ifndef NICOOKIE_H
 #define NICOOKIE_H
 
@@ -37,19 +37,39 @@ public:
     static const QString CHROME;
     static const QString OPERA;
 
+    static const QStringList BROWSER_LIST;
+
+    enum Error : int {
+        NoError = 0,
+        NotImplementError,
+        UnknownBrowserError,
+        NotSupportBrowserError,
+        NotFoundDataError,
+        NotFoundCookiesFileError,
+        InvalidDataFormtaError,
+        FailedDecrytError,
+        FailedOpenCookiesFileError,
+        FailedReadDataError,
+        SQLiteError,
+        FailedParseProfileError,
+    };
+
 private:
-    QString error;
+    enum Error errorNum;
     QString userSession;
 
 public:
     explicit Nicookie(QObject *parent = 0);
     ~Nicookie();
     QString getUserSession(QString browser);
-    QStringList getBrowserList();
-    QString errorString();
-    bool hasError();
+    const QStringList &getBrowserList() const;
+    Error error() const;
+    const QString errorString() const;
+    bool hasError() const;
+    void clear();
 
 private:
+    // find Cookie
 #ifdef Q_OS_WIN
     bool findInternetExplorer();
 #endif // Q_OS_WIN
@@ -69,6 +89,8 @@ private:
 
     bool findOpera();
 
+    // utility
+    void setError(Error num);
     bool querySqlite3(const QString &sqlite3_file,
                                  const QString &query,
                                  const QMap<QString, QVariant> &placeholders,

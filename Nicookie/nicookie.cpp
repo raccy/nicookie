@@ -1,4 +1,7 @@
-﻿#include <QProcessEnvironment>
+﻿/*
+ * Nicookie.c ニコニコ動画ユーザセッションクッキー取得ライブラリ for Qt
+ */
+#include <QProcessEnvironment>
 #include <QFile>
 #include <QTemporaryFile>
 #include <QSettings>
@@ -32,6 +35,7 @@
 #ifdef Q_OS_OSX
 #include <Security/Security.h>
 #endif // Q_OS_OSX
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #include <openssl/aes.h>
 #include <openssl/evp.h>
 #include <openssl/bio.h>
@@ -50,9 +54,21 @@ const QString Nicookie::FIREFOX = "Mozilla Firefox";
 const QString Nicookie::CHROME = "Google Chrome";
 const QString Nicookie::OPERA = "Opera";
 
+const QStringList Nicookie::BROWSER_LIST = {
+#ifdef Q_OS_WIN
+    Nicookie::INTERNET_EXPLORER,
+#endif // Q_OS_WIN
+#ifdef Q_OS_MAC
+    Nicookie::SAFARI,
+#endif // Q_OS_MAC
+    Nicookie::FIREFOX,
+    Nicookie::CHROME,
+//    Nicookie::OPERA,
+};
+
 Nicookie::Nicookie(QObject *parent) : QObject(parent)
 {
-    this->error = QString();
+    this->errorNum = Nicookie::NoError;
     this->userSession = QString();
 }
 
@@ -63,19 +79,18 @@ Nicookie::~Nicookie()
 
 QString Nicookie::getUserSession(QString browser)
 {
-    this->error = QString();
-    this->userSession = QString();
+    clear();
     if (browser == Nicookie::INTERNET_EXPLORER) {
 #ifdef Q_OS_WIN
         findInternetExplorer();
 #else
-        this->error = "未対応のブラウザです。";
+        setError(Nicookie::NotSupportBrowserError);
 #endif // Q_OS_WIN
     } else if (browser == Nicookie::SAFARI) {
 #ifdef Q_OS_OSX
         findSafari();
 #else
-        this->error = "未対応のブラウザです。";
+        setError(Nicookie::NotSupportBrowserError);
 #endif // Q_OS_OSX
     } else if (browser == Nicookie::FIREFOX) {
         findFirefox();
@@ -83,33 +98,75 @@ QString Nicookie::getUserSession(QString browser)
         findChrome();
     } else if (browser == Nicookie::OPERA) {
         findOpera();
+    } else {
+        setError(Nicookie::UnknownBrowserError);
     }
     return this->userSession;
 }
 
-QStringList Nicookie::getBrowserList()
+const QStringList &Nicookie::getBrowserList() const
 {
-    QStringList list;
-#ifdef Q_OS_WIN
-    list << Nicookie::INTERNET_EXPLORER;
-#endif // Q_OS_WIN
-#ifdef Q_OS_OSX
-    list << Nicookie::SAFARI;
-#endif // Q_OS_OSX
-    list << Nicookie::FIREFOX;
-    list << Nicookie::CHROME;
-//    list << Nicookie::OPERA;
-    return list;
+    return Nicookie::BROWSER_LIST;
 }
 
-QString Nicookie::errorString()
+Nicookie::Error Nicookie::error() const
 {
-    return this->error;
+    return this->errorNum;
 }
 
-bool Nicookie::hasError()
+const QString Nicookie::errorString() const
 {
-    return !this->error.isEmpty();
+    switch(this->errorNum) {
+    case Nicookie::NoError:
+        return QStringLiteral("エラーはありません。");
+        break;
+    case Nicookie::NotImplementError:
+        return QStringLiteral("まだ、実装していません。");
+        break;
+    case Nicookie::UnknownBrowserError:
+        return QStringLiteral("不明なブラウザです。");
+        break;
+    case Nicookie::NotSupportBrowserError:
+        return QStringLiteral("未対応のブラウザです。");
+        break;
+    case Nicookie::NotFoundDataError:
+        return QStringLiteral("データが見つかりませんでした。");
+        break;
+    case Nicookie::NotFoundCookiesFileError:
+        return QStringLiteral("クッキーファイルが見つかりませんでした。");
+        break;
+    case Nicookie::InvalidDataFormtaError:
+        return QStringLiteral("データフォーマットが不正です。");
+        break;
+    case Nicookie::FailedDecrytError:
+        return QStringLiteral("復号に失敗しました。");
+        break;
+    case Nicookie::FailedOpenCookiesFileError:
+        return QStringLiteral("クッキーファイルを開けませんでした。");
+        break;
+    case Nicookie::FailedReadDataError:
+        return QStringLiteral("データを読み込めませんでした。");
+        break;
+    case Nicookie::SQLiteError:
+        return QStringLiteral("SQLite3の処理でエラーが発生しました。");
+        break;
+    case Nicookie::FailedParseProfileError:
+        return QStringLiteral("プロファイルの解析でエラーが発生しました。");
+        break;
+    default:
+        return QStringLiteral("不明なエラーです。");
+    }
+}
+
+bool Nicookie::hasError() const
+{
+    return this->errorNum != Nicookie::NoError;
+}
+
+void Nicookie::clear()
+{
+    setError(Nicookie::NoError);
+    this->userSession = QString();
 }
 
 #ifdef Q_OS_WIN
@@ -138,7 +195,7 @@ bool Nicookie::findInternetExplorer()
         this->userSession = QString::fromStdWString(std::wstring(cookie_data));
         return true;
     } else {
-        this->error = "データが見つかりませんでした。";
+        setError(Nicookie::NotFoundDataError);
         return false;
     }
 }
@@ -156,12 +213,12 @@ bool Nicookie::findSafari()
 
     QFile cookies_file(cookies_path);
     if (!cookies_file.exists()) {
-        this->error = "クッキーファイルがありません。";
+        setError(Nicookie::NotFoundCookiesFileError);
         return false;
     }
 
     if (!cookies_file.open(QIODevice::ReadOnly)) {
-        this->error = "クッキーファイルを開けませんでした。";
+        setError(Nicookie::FailedOpenCookiesFileError);
         return false;
     }
 
@@ -173,14 +230,14 @@ bool Nicookie::safariFindFile(QIODevice &device) {
     // Signature
     QByteArray headr_signature("cook", 4);
     if (headr_signature != device.read(4)) {
-        this->error = "データ構造が不正です。";
+        setError(Nicookie::InvalidDataFormtaError);
         return false;
     }
 
     // No. of pages
     quint32 page_num = readUint32BE(device);
     if (page_num == 0) {
-        this->error = "データがありません。";
+        setError(Nicookie::NotFoundDataError);
         return false;
     }
 
@@ -190,7 +247,7 @@ bool Nicookie::safariFindFile(QIODevice &device) {
         page_size_list.append(readUint32BE(device));
     }
     if (device.atEnd()) {
-        this->error = "データ構造が不正です。";
+        setError(Nicookie::InvalidDataFormtaError);
         return false;
     }
 
@@ -202,7 +259,7 @@ bool Nicookie::safariFindFile(QIODevice &device) {
     }
 
     if (!hasError()) {
-        this->error = "データが見つかりませんでした。";
+        setError(Nicookie::NotFoundDataError);
     }
     return false;
 }
@@ -214,7 +271,7 @@ bool Nicookie::safariFindPage(QIODevice &device)
     // Page Header
     quint32 page_header = readUint32BE(device);
     if (page_header != 0x00000100) {
-        this->error = "データ構造が不正です。";
+        setError(Nicookie::InvalidDataFormtaError);
         return false;
     }
 
@@ -244,10 +301,10 @@ bool Nicookie::safariFindCookie(QIODevice &device)
 {
     qint64 begin_pos = device.pos();
 
-    quint32 cookie_size = readUint32LE(device);
-    readUint32LE(device);
-    quint32 flags = readUint32LE(device);
-    readUint32LE(device);
+    readUint32LE(device); // cookie_size not use
+    readUint32LE(device); // unknown
+    readUint32LE(device); // flags not use
+    readUint32LE(device);  // unknown
     quint32 url_offset = readUint32LE(device);
     quint32 name_offset = readUint32LE(device);
     quint32 path_offset = readUint32LE(device);
@@ -268,7 +325,7 @@ bool Nicookie::safariFindCookie(QIODevice &device)
     device.seek(begin_pos + value_offset);
     QString str = readStr(device);
     if (str.isEmpty()) {
-        this->error = "クッキーが空です。";
+        setError(Nicookie::NotFoundDataError);
         return false;
     } else {
         this->userSession = str;
@@ -308,20 +365,20 @@ QStringList Nicookie::firefoxGetProfileList(const QString &profile_ini)
     QStringList list;
     QFile profile_file(profile_ini);
     if (!profile_file.exists()) {
-        this->error = "プロファイル設定ファイルが見つかりません。";
+        setError(Nicookie::FailedParseProfileError);
         return list;
     }
 
     QTemporaryFile profile_temp;
     QString profile_temp_path = profile_temp.fileTemplate();
     if (profile_file.copy(profile_temp_path)) {
-        this->error = "プロファイル設定ファイルの読み込みに失敗しました。";
+        setError(Nicookie::FailedParseProfileError);
         return list;
     }
 
     QSettings profile_settings(profile_temp_path, QSettings::IniFormat);
     if (profile_settings.status() != QSettings::NoError) {
-        this->error = "プロファイル設定ファイルが正しくありません。";
+        setError(Nicookie::FailedParseProfileError);
         return list;
     }
 
@@ -345,7 +402,7 @@ QStringList Nicookie::firefoxGetProfileList(const QString &profile_ini)
     }
 
     if (list.isEmpty()) {
-        this->error = "パスが一つも見つかりませんでした。";
+        setError(Nicookie::FailedParseProfileError);
     }
     return list;
 }
@@ -426,7 +483,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                      NULL, NULL, NULL, NULL, 0,
                                      &plain_data_blob);
     if (!result) {
-        this->error = "複合化に失敗しました。";
+        setError(Nicookie::FailedDecrytError);
         return QString();
     }
     data = (QByteArray((char *)(plain_data_blob.pbData),
@@ -445,7 +502,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                                &password_size, &password,
                                                NULL);
     if (password_size == 0) {
-        this->error = "キーチェーンから暗号化キーを取得できませんでした。";
+        setError(Nicookie::FailedDecrytError);
         SecKeychainItemFreeContent(NULL, password);
         return data;
     }
@@ -469,7 +526,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                           iterations,
                                           enc_key_size, enc_key);
     if (!pbkdf2_r) {
-        this->error = "Chromeの暗号化キーが取得できませんでした。";
+        setError(Nicookie::FailedDecrytError);
 #ifdef Q_OS_OSX
         SecKeychainItemFreeContent(NULL, password);
 #endif // Q_OS_OSX
@@ -484,7 +541,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
     int plain_value_size = encrypt_data.size();
     char *plain_value = (char *)malloc(plain_value_size);
     if (plain_value == NULL) {
-        this->error = "メモリ領域の確保に失敗しました。";
+        setError(Nicookie::FailedDecrytError);
 #ifdef Q_OS_OSX
         SecKeychainItemFreeContent(NULL, password);
 #endif // Q_OS_OSX
@@ -497,7 +554,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
 
     result = EVP_DecryptInit_ex(&ctx, EVP_aes_128_cbc(), NULL, enc_key, iv);
     if (!result) {
-        this->error = "復号エンジンの初期化に失敗しました。";
+        setError(Nicookie::FailedDecrytError);
         EVP_CIPHER_CTX_cleanup(&ctx);
         free(plain_value);
 #ifdef Q_OS_OSX
@@ -512,7 +569,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                (unsigned char *)(encrypt_data.data() + 3),
                                encrypt_data.size() - 3);
     if (!result) {
-        this->error = "複合に失敗しました。";
+        setError(Nicookie::FailedDecrytError);
         EVP_CIPHER_CTX_cleanup(&ctx);
         free(plain_value);
 #ifdef Q_OS_OSX
@@ -527,7 +584,7 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
                                                    plain_value_size),
                                  &fin_size);
     if (!result) {
-        this->error = "複合の最終処理に失敗しました。";
+        setError(Nicookie::FailedDecrytError);
         EVP_CIPHER_CTX_cleanup(&ctx);
         free(plain_value);
 #ifdef Q_OS_OSX
@@ -551,16 +608,13 @@ QString Nicookie::chromeDecrypt(const QByteArray &encrypt_data)
 
 bool Nicookie::findOpera()
 {
-    // TODO: よくわかんですたい
-//    QString cookies_path;
-//    cookies_path += QProcessEnvironment::systemEnvironment().value("HOME");
-//    cookies_path +=
-//            "/Library/Application Support/com.operasoftware.Opera/Cookies";
-//    return operaFindValue(cookies_path);
-    // Chromeと同じSqlite3だが暗号キーとかが異なる様子。
-    // 復号の暗号キーについて詳細不明。
-    this->error = "まだ、実装してないよ。";
+    setError(Nicookie::NotImplementError);
     return false;
+}
+
+void Nicookie::setError(Error num)
+{
+    this->errorNum = num;
 }
 
 bool Nicookie::querySqlite3(const QString &sqlite3_file,
@@ -573,21 +627,20 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
         QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE",
                                                     "nicookie_sqlite3");
         if (!db.isValid()) {
-            this->error = "SQLite3が使用できません。"
-                          "ライブラリが不足していませんか？";
+            setError(Nicookie::SQLiteError);
             break;
         }
 
         db.setDatabaseName(sqlite3_file);
         if (!db.open()) {
-            this->error = "SQLiete3のファイルを開けませんでした。";
+            setError(Nicookie::SQLiteError);
             db.close();
             break;
         }
 
         QSqlQuery sql_query(db);
         if (!sql_query.prepare(query)) {
-            this->error = "SQL文が不正です。";
+            setError(Nicookie::SQLiteError);
             db.close();
             break;
         }
@@ -596,14 +649,14 @@ bool Nicookie::querySqlite3(const QString &sqlite3_file,
             sql_query.bindValue(name, placeholders[name]);
         }
         if (!sql_query.exec()) {
-            this->error = "SQLの実行に失敗しました。";
+            setError(Nicookie::SQLiteError);
             sql_query.finish();
             db.close();
             break;
         }
 
         if (!sql_query.first()) {
-            this->error = "検索したレコードが見つかりませんでした。";
+            setError(Nicookie::NotFoundDataError);
             sql_query.finish();
             db.close();
             break;
@@ -643,13 +696,13 @@ bool Nicookie::checkSameStr(QIODevice &device, const QString &str)
     char input_c;
     for (auto &c: str) {
         if (!device.getChar(&input_c)) {
-            this->error = "データを読み込めませんでした。";
+            setError(Nicookie::FailedReadDataError);
             return false;
         }
         if (c != input_c) return false;
     }
     if (!device.getChar(&input_c)) {
-        this->error = "データを読み込めませんでした。";
+        setError(Nicookie::FailedReadDataError);
         return false;
     }
     if (input_c != '\0') return false;
@@ -662,7 +715,7 @@ QString Nicookie::readStr(QIODevice &device)
     while (true) {
         char input_c;
         if (!device.getChar(&input_c)) {
-            this->error = "データを読み込めませんでした。";
+            setError(Nicookie::FailedReadDataError);
             return QString();
         }
         if (input_c == '\0') {
