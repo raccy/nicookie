@@ -11,7 +11,9 @@ QT += core gui
 QT += sql
 
 win32: LIBS += -lwininet
-win32: LIBS += -liepmapi
+win32-msvc*{
+LIBS += -liepmapi
+}
 win32: LIBS += -lcrypt32
 mac: LIBS += -framework Security
 unix: LIBS += -lcrypto
